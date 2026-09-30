@@ -1,8 +1,8 @@
 import React from 'react';
-import { MapPin, User, Clock } from 'lucide-react';
+import { MapPin, User, Clock, Users, BookOpen } from 'lucide-react';
 import { getClassStatus } from '../utils/api';
 
-// Subject / Module color synchronization with Material You
+// Subject / Module color synchronization with Material You tokens
 function getModuleColorTheme(modId = '') {
   let hash = 0;
   for (let i = 0; i < modId.length; i++) {
@@ -49,26 +49,36 @@ export default function ClassCard({ cls }) {
   const modColors = getModuleColorTheme(cls.MODID || cls.MODULE_NAME);
 
   const containerStyle = isOngoing
-    ? 'bg-[var(--md-sys-color-primary-container)]/40 border-[var(--md-sys-color-primary)] shadow-md'
+    ? 'bg-[var(--md-sys-color-primary-container)]/35 border-[var(--md-sys-color-primary)] shadow-sm'
     : isPast
-    ? 'bg-[var(--md-sys-color-surface-container-lowest)] border-[var(--md-sys-color-outline-variant)]/20 opacity-80'
-    : 'bg-[var(--md-sys-color-surface-container)] border-[var(--md-sys-color-outline-variant)]/30 hover:shadow-md';
+    ? 'bg-[var(--md-sys-color-surface-container-lowest)] border-[var(--md-sys-color-outline-variant)]/25 opacity-75'
+    : 'bg-[var(--md-sys-color-surface-container)] border-[var(--md-sys-color-outline-variant)]/30 hover:border-[var(--md-sys-color-primary)]/40 hover:shadow-xs';
 
   return (
-    <div className={`relative flex overflow-hidden rounded-2xl border transition-all duration-200 ${containerStyle}`}>
+    <article
+      className={`relative flex overflow-hidden rounded-2xl border transition-all duration-200 ${containerStyle}`}
+      aria-label={`${cls.MODULE_NAME || 'Class'}, ${cls.TIME_FROM} to ${cls.TIME_TO}, Room ${cls.ROOM || 'TBA'}`}
+    >
       {/* Left Material You Subject Color Accent Strip */}
-      <div className={`w-1.5 shrink-0 ${modColors.accent}`} />
+      <div className={`w-1.5 shrink-0 ${modColors.accent}`} aria-hidden="true" />
 
-      <div className="flex-1 p-3.5 sm:p-4 space-y-2">
-        {/* Line 1: Time range + Module code pill + Live status */}
+      <div className="flex-1 p-4 sm:p-5 space-y-2.5">
+        {/* Row 1: Time range + Module code pill + Live status badge */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-black ${isOngoing ? 'text-[var(--md-sys-color-on-primary-container)]' : modColors.timeText}`}>
-              {cls.TIME_FROM} – {cls.TIME_TO}
+            <span
+              className={`text-xs sm:text-sm font-black flex items-center gap-1.5 ${
+                isOngoing ? 'text-[var(--md-sys-color-on-primary-container)]' : modColors.timeText
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{cls.TIME_FROM} – {cls.TIME_TO}</span>
             </span>
 
             {cls.MODID && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${modColors.badgeBg} ${modColors.badgeText}`}>
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${modColors.badgeBg} ${modColors.badgeText}`}
+              >
                 {cls.MODID}
               </span>
             )}
@@ -76,48 +86,50 @@ export default function ClassCard({ cls }) {
 
           <div>
             {isOngoing && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500 text-white animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                LIVE
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500 text-white shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" aria-hidden="true" />
+                LIVE NOW
               </span>
             )}
             {isPast && (
-              <span className="text-[10px] font-medium text-[var(--md-sys-color-outline)]">
-                Done
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-outline)]">
+                Completed
               </span>
             )}
           </div>
         </div>
 
-        {/* Line 2: Module Title */}
-        <h3 className="text-sm sm:text-base font-bold text-[var(--md-sys-color-on-surface)] leading-snug line-clamp-2">
+        {/* Row 2: Module Title */}
+        <h3 className="text-sm sm:text-base font-black text-[var(--md-sys-color-on-surface)] leading-snug">
           {cls.MODULE_NAME}
         </h3>
 
-        {/* Line 3: Room · Lecturer · Group (Clean inline) */}
+        {/* Row 3: Room · Lecturer · Group metadata chips */}
         <div className="flex items-center gap-2 text-xs text-[var(--md-sys-color-on-surface-variant)] flex-wrap pt-0.5">
-          <span className="inline-flex items-center gap-1 font-bold text-[var(--md-sys-color-on-surface)]">
-            <MapPin className="w-3.5 h-3.5 text-[var(--md-sys-color-primary)] shrink-0" />
-            {cls.ROOM || 'TBA'}
+          <span className="inline-flex items-center gap-1.5 font-bold text-[var(--md-sys-color-on-surface)] px-2.5 py-1 rounded-lg bg-[var(--md-sys-color-surface-container-high)]">
+            <MapPin className="w-3.5 h-3.5 text-[var(--md-sys-color-primary)] shrink-0" aria-hidden="true" />
+            <span>Room {cls.ROOM || 'TBA'}</span>
           </span>
 
-          <span className="text-[var(--md-sys-color-outline)]">·</span>
-
-          <span className="inline-flex items-center gap-1 truncate max-w-[200px]">
-            <User className="w-3.5 h-3.5 text-[var(--md-sys-color-outline)] shrink-0" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--md-sys-color-surface-container-high)] truncate max-w-[240px]">
+            <User className="w-3.5 h-3.5 text-[var(--md-sys-color-outline)] shrink-0" aria-hidden="true" />
             <span className="truncate">{cls.NAME || cls.LECTID || 'Staff'}</span>
           </span>
 
           {cls.GROUPING && (
-            <>
-              <span className="text-[var(--md-sys-color-outline)]">·</span>
-              <span className="text-[11px] font-semibold text-[var(--md-sys-color-outline)]">
-                Grp {cls.GROUPING}
-              </span>
-            </>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-outline)]">
+              <Users className="w-3 h-3" aria-hidden="true" />
+              <span>Grp {cls.GROUPING}</span>
+            </span>
+          )}
+
+          {cls.CLASS_CODE && (
+            <span className="text-[10px] font-mono text-[var(--md-sys-color-outline)] hidden sm:inline">
+              ({cls.CLASS_CODE})
+            </span>
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
 }

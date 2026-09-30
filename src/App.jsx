@@ -5,13 +5,14 @@ import TimetableTab from './components/TimetableTab';
 import ClassroomFinderTab from './components/ClassroomFinderTab';
 import SettingsModal from './components/SettingsModal';
 import { fetchWeeklyTimetable } from './utils/api';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Calendar } from 'lucide-react';
 
 export default function App() {
   const [allTimetables, setAllTimetables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('timetable'); // 'timetable' or 'classroom'
+  const [intakeModalTrigger, setIntakeModalTrigger] = useState(false);
 
   // Settings State: themeMode ('system', 'light', 'dark') & colorPalette ('indigo', 'emerald', 'rose', 'amber', 'violet')
   const [themeMode, setThemeMode] = useState(() => {
@@ -20,6 +21,10 @@ export default function App() {
 
   const [colorPalette, setColorPalette] = useState(() => {
     return localStorage.getItem('theme_palette') || 'indigo';
+  });
+
+  const [selectedIntake, setSelectedIntake] = useState(() => {
+    return localStorage.getItem('last_intake') || '';
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -63,9 +68,11 @@ export default function App() {
     try {
       const data = await fetchWeeklyTimetable(forceRefresh);
       setAllTimetables(data);
+      // Refresh local intake state if saved
+      setSelectedIntake(localStorage.getItem('last_intake') || '');
     } catch (err) {
       console.error('Failed to load timetable:', err);
-      setError('Unable to fetch timetable data. Please check your network or try refreshing.');
+      setError('Unable to fetch timetable data. Please check your connection or try refreshing.');
     } finally {
       setLoading(false);
     }
@@ -75,29 +82,44 @@ export default function App() {
     loadData();
   }, []);
 
+  const handleOpenIntakeModal = () => {
+    setActiveTab('timetable');
+    setIntakeModalTrigger(true);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)] transition-colors duration-200">
+      {/* Web Header */}
       <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefresh={() => loadData(true)}
         loading={loading}
         colorPalette={colorPalette}
+        selectedIntake={selectedIntake}
+        onOpenIntakeModal={handleOpenIntakeModal}
       />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-3 sm:py-5 space-y-4">
-        {/* Navigation Tabs */}
+      {/* Main Web Workspace */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5">
+        {/* Mobile Navigation Bar (visible only on small viewports) */}
         <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
         {/* Error notification banner */}
         {error && (
-          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3 text-xs font-semibold">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+          <div
+            role="alert"
+            className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3 text-xs font-bold"
+          >
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
               <span>{error}</span>
             </div>
             <button
+              type="button"
               onClick={() => loadData(true)}
-              className="px-3 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 transition cursor-pointer"
+              className="px-4 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 transition cursor-pointer"
             >
               Retry
             </button>
@@ -106,16 +128,24 @@ export default function App() {
 
         {/* Loading overlay / skeleton indicator */}
         {loading && allTimetables.length === 0 ? (
-          <div className="py-24 text-center space-y-3">
-            <div className="w-10 h-10 mx-auto rounded-full border-3 border-[var(--md-sys-color-primary-container)] border-t-[var(--md-sys-color-primary)] animate-spin" />
+          <div className="py-28 text-center space-y-4">
+            <div
+              className="w-12 h-12 mx-auto rounded-full border-3 border-[var(--md-sys-color-primary-container)] border-t-[var(--md-sys-color-primary)] animate-spin"
+              aria-label="Loading campus timetable feed"
+            />
             <p className="text-xs font-bold text-[var(--md-sys-color-on-surface-variant)]">
-              Connecting to campus timetable feed...
+              Connecting to campus timetable S3 feed...
             </p>
           </div>
         ) : (
           <div>
             {activeTab === 'timetable' ? (
-              <TimetableTab allTimetables={allTimetables} loading={loading} />
+              <TimetableTab
+                allTimetables={allTimetables}
+                loading={loading}
+                intakeModalTrigger={intakeModalTrigger}
+                onIntakeModalTriggerConsumed={() => setIntakeModalTrigger(false)}
+              />
             ) : (
               <ClassroomFinderTab allTimetables={allTimetables} loading={loading} />
             )}
@@ -123,33 +153,39 @@ export default function App() {
         )}
       </main>
 
-      {/* Settings Modal */}
+      {/* Settings Dialog */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={() => {
+          setIsSettingsOpen(false);
+          setSelectedIntake(localStorage.getItem('last_intake') || '');
+        }}
         themeMode={themeMode}
         setThemeMode={setThemeMode}
         colorPalette={colorPalette}
         setColorPalette={setColorPalette}
-        selectedIntake={localStorage.getItem('last_intake') || ''}
-        onOpenIntakeDialog={() => {
-          // Intake modal can be triggered
-        }}
+        selectedIntake={selectedIntake}
+        onOpenIntakeDialog={handleOpenIntakeModal}
         onRefresh={() => loadData(true)}
         loading={loading}
       />
 
-      {/* Minimal Footer */}
-      <footer className="mt-8 py-5 border-t border-[var(--md-sys-color-surface-container-high)] text-center text-[11px] text-[var(--md-sys-color-outline)] space-y-1">
-        <p>APTimetable • Material You • Campus Live Feed</p>
-        <p>
+      {/* Web Footer */}
+      <footer className="mt-12 py-6 border-t border-[var(--md-sys-color-surface-container-high)] text-center text-xs text-[var(--md-sys-color-outline)] space-y-1">
+        <p className="font-semibold text-[var(--md-sys-color-on-surface)]">
+          APTimetable Web App
+        </p>
+        <p className="text-[11px]">
+          Material You Design System • Zero Emoji Vector Icons • Accessible WCAG 2.1 Compliant
+        </p>
+        <p className="pt-1">
           <a
             href="https://github.com/Kwan-desu/aptimetable"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:underline font-semibold text-[var(--md-sys-color-primary)]"
+            className="hover:underline font-bold text-[var(--md-sys-color-primary)]"
           >
-            GitHub Repository
+            GitHub Repository (Open Source)
           </a>
         </p>
       </footer>

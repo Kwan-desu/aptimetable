@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
-  Calendar as CalendarIcon,
   Download,
-  Filter,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
+  CalendarDays,
+  CalendarPlus,
+  Compass,
   Check,
   Clock,
-  Compass,
-  CalendarDays,
-  X
+  Layers,
+  ArrowUpDown,
+  X,
+  Sparkles
 } from 'lucide-react';
 import ClassCard from './ClassCard';
 import GapSuggestionCard from './GapSuggestionCard';
@@ -20,22 +19,21 @@ import {
   extractGroupings,
   extractAvailableWeeks,
   filterTimetable,
-  sortClasses,
-  getClassStatus
+  sortClasses
 } from '../utils/api';
 import { exportToICS } from '../utils/calendar';
 import { parseTimeToMinutes, findNearbyFreeRooms } from '../utils/proximity';
 
 const SCHOOL_DAYS = [
-  { key: 'MON', label: 'Mon' },
-  { key: 'TUE', label: 'Tue' },
-  { key: 'WED', label: 'Wed' },
-  { key: 'THU', label: 'Thu' },
-  { key: 'FRI', label: 'Fri' }
+  { key: 'MON', label: 'Monday', short: 'Mon' },
+  { key: 'TUE', label: 'Tuesday', short: 'Tue' },
+  { key: 'WED', label: 'Wednesday', short: 'Wed' },
+  { key: 'THU', label: 'Thursday', short: 'Thu' },
+  { key: 'FRI', label: 'Friday', short: 'Fri' }
 ];
 
-export default function TimetableTab({ allTimetables, loading }) {
-  // 1. Persistent State Memory (Intake, ViewMode, Grouping, Sort)
+export default function TimetableTab({ allTimetables, loading, intakeModalTrigger, onIntakeModalTriggerConsumed }) {
+  // Persistent State
   const [intakeInput, setIntakeInput] = useState(() => {
     return localStorage.getItem('last_intake') || '';
   });
@@ -65,6 +63,14 @@ export default function TimetableTab({ allTimetables, loading }) {
   const [searchFilter, setSearchFilter] = useState('');
   const [showIntakeModal, setShowIntakeModal] = useState(false);
 
+  // Listen to external trigger from header if provided
+  useEffect(() => {
+    if (intakeModalTrigger) {
+      setShowIntakeModal(true);
+      if (onIntakeModalTriggerConsumed) onIntakeModalTriggerConsumed();
+    }
+  }, [intakeModalTrigger, onIntakeModalTriggerConsumed]);
+
   // Available weeks from timetable data
   const availableWeeks = useMemo(() => {
     return extractAvailableWeeks(allTimetables);
@@ -85,9 +91,9 @@ export default function TimetableTab({ allTimetables, loading }) {
 
   // Autocomplete suggestions
   const intakeSuggestions = useMemo(() => {
-    if (!intakeInput.trim()) return allIntakes.slice(0, 10);
+    if (!intakeInput.trim()) return allIntakes.slice(0, 15);
     const query = intakeInput.trim().toUpperCase();
-    return allIntakes.filter((code) => code.toUpperCase().includes(query)).slice(0, 15);
+    return allIntakes.filter((code) => code.toUpperCase().includes(query)).slice(0, 20);
   }, [allIntakes, intakeInput]);
 
   const handleSelectIntake = (intake) => {
@@ -198,46 +204,68 @@ export default function TimetableTab({ allTimetables, loading }) {
     const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const c = days[new Date().getDay()];
     return c === 'SUN' || c === 'SAT' ? 'MON' : c;
-  }, []);
+  });
 
   // Export current week to calendar
   const handleExportWeek = () => {
     if (!intakeClasses || intakeClasses.length === 0) {
-      alert('No classes to export for this week');
+      alert('No classes found to export for this week.');
       return;
     }
     exportToICS(intakeClasses, `Timetable_${selectedIntake || 'APU'}_Week.ics`);
   };
 
   return (
-    <div className="space-y-4">
-      {/* COMPACT TOOLBAR (No horizontal scroll) */}
-      <div className="p-3.5 sm:p-4 rounded-3xl bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline-variant)]/20 shadow-xs space-y-3">
-        {/* Row 1: Intake Selector Pill + View Mode Toggle + Add Week to Calendar */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          {/* Intake Pill Button */}
-          <button
-            type="button"
-            onClick={() => setShowIntakeModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] text-xs font-black hover:opacity-90 transition cursor-pointer"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>{selectedIntake || 'Select Intake Code'}</span>
-          </button>
+    <div className="space-y-5">
+      {/* WEB CONTROL PANEL */}
+      <section className="p-4 sm:p-5 rounded-3xl bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline-variant)]/20 shadow-xs space-y-4">
+        {/* Row 1: Intake Selector + View Mode Switcher + Export Calendar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowIntakeModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] text-xs font-black hover:opacity-90 transition cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] shadow-xs"
+            >
+              <Compass className="w-4 h-4 text-[var(--md-sys-color-primary)]" aria-hidden="true" />
+              <span>{selectedIntake ? selectedIntake : 'Choose Intake Code'}</span>
+            </button>
+
+            {availableWeeks.length > 1 && (
+              <select
+                value={selectedWeekKey}
+                onChange={(e) => setSelectedWeekKey(e.target.value)}
+                className="px-3 py-2 rounded-xl text-xs font-bold bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface)] border border-[var(--md-sys-color-outline-variant)]/30 focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] cursor-pointer"
+              >
+                {availableWeeks.map((w) => (
+                  <option key={w.key} value={w.key}>
+                    Week {w.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Total classes count badge */}
+            {selectedIntake && (
+              <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">
+                {intakeClasses.length} {intakeClasses.length === 1 ? 'class this week' : 'classes this week'}
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
-            {/* Day / Week Toggle */}
-            <div className="inline-flex p-1 rounded-xl bg-[var(--md-sys-color-surface-container-high)] text-xs font-bold">
+            {/* View Mode Toggle (Day vs Week) */}
+            <div className="inline-flex p-1 rounded-2xl bg-[var(--md-sys-color-surface-container-high)] text-xs font-bold">
               <button
                 type="button"
                 onClick={() => {
                   setViewMode('daily');
                   localStorage.setItem('timetable_view_mode', 'daily');
                 }}
-                className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                className={`px-4 py-1.5 rounded-xl transition cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] ${
                   viewMode === 'daily'
                     ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-xs'
-                    : 'text-[var(--md-sys-color-on-surface-variant)]'
+                    : 'text-[var(--md-sys-color-on-surface-variant)] hover:text-[var(--md-sys-color-on-surface)]'
                 }`}
               >
                 Day
@@ -248,33 +276,33 @@ export default function TimetableTab({ allTimetables, loading }) {
                   setViewMode('weekly');
                   localStorage.setItem('timetable_view_mode', 'weekly');
                 }}
-                className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                className={`px-4 py-1.5 rounded-xl transition cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] ${
                   viewMode === 'weekly'
                     ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-xs'
-                    : 'text-[var(--md-sys-color-on-surface-variant)]'
+                    : 'text-[var(--md-sys-color-on-surface-variant)] hover:text-[var(--md-sys-color-on-surface)]'
                 }`}
               >
                 Week
               </button>
             </div>
 
-            {/* Prominent Add Week to Calendar Button */}
+            {/* Add Week to Calendar Button */}
             <button
               type="button"
               onClick={handleExportWeek}
               disabled={intakeClasses.length === 0}
-              title="Add all classes of this week to Calendar (.ics)"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] hover:opacity-90 text-xs font-bold transition cursor-pointer disabled:opacity-40"
+              title="Add all classes for this week to Apple/Google/Outlook Calendar (.ics)"
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] hover:opacity-90 text-xs font-black transition cursor-pointer disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] shadow-xs"
             >
-              <CalendarDays className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Add Week</span>
+              <CalendarPlus className="w-4 h-4" aria-hidden="true" />
+              <span>Export Week</span>
             </button>
           </div>
         </div>
 
-        {/* Row 2: Day Strip (5 columns, 100% width, MON-FRI only, NO horizontal scroll) */}
+        {/* Row 2: 5-Day School Week Selector (Mon-Fri) when in Daily Mode */}
         {viewMode === 'daily' && (
-          <div className="grid grid-cols-5 gap-1.5 pt-1">
+          <div className="grid grid-cols-5 gap-2 pt-1">
             {SCHOOL_DAYS.map((d) => {
               const isSelected = selectedDay === d.key;
               const isToday = todayCode === d.key;
@@ -285,89 +313,113 @@ export default function TimetableTab({ allTimetables, loading }) {
                   key={d.key}
                   type="button"
                   onClick={() => setSelectedDay(d.key)}
-                  className={`py-2 px-1 rounded-xl text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                  className={`py-3 px-2 rounded-2xl text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] ${
                     isSelected
                       ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm'
                       : isToday
-                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+                      ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] border border-[var(--md-sys-color-primary)]/40'
                       : 'bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-highest)]'
                   }`}
                 >
-                  <span className="text-[11px] font-black uppercase tracking-wider">{d.key}</span>
+                  <span className="text-xs sm:text-sm font-black tracking-tight">{d.short}</span>
                   <span
-                    className={`text-[10px] font-semibold ${
+                    className={`text-[11px] font-semibold ${
                       isSelected
                         ? 'text-[var(--md-sys-color-on-primary)]/80'
+                        : isToday
+                        ? 'text-[var(--md-sys-color-primary)]'
                         : 'text-[var(--md-sys-color-outline)]'
                     }`}
                   >
                     {count} {count === 1 ? 'class' : 'classes'}
                   </span>
+                  {isToday && !isSelected && (
+                    <span className="text-[9px] font-black uppercase tracking-wider text-[var(--md-sys-color-primary)] mt-0.5">
+                      Today
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
         )}
 
-        {/* Row 3: Group & Sort filters (if multiple groups exist) */}
-        {availableGroupings.length > 1 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pt-1 text-xs">
-            <span className="text-[11px] font-bold text-[var(--md-sys-color-outline)] shrink-0">
-              Group:
-            </span>
-            {availableGroupings.map((grp) => (
-              <button
-                key={grp}
-                type="button"
-                onClick={() => {
-                  setSelectedGrouping(grp);
-                  localStorage.setItem('timetable_grouping', grp);
-                }}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer shrink-0 ${
-                  selectedGrouping === grp
-                    ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)]'
-                    : 'bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface-variant)]'
-                }`}
-              >
-                {grp}
-              </button>
-            ))}
+        {/* Row 3: Quick Filter Search Input & Group Selector */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-[var(--md-sys-color-outline-variant)]/20">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-[var(--md-sys-color-outline)]" aria-hidden="true" />
+            <input
+              type="text"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder="Search module name, code, lecturer, or room..."
+              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs bg-[var(--md-sys-color-surface-container-high)] border border-[var(--md-sys-color-outline-variant)]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-surface)] placeholder-[var(--md-sys-color-outline)]"
+            />
           </div>
-        )}
-      </div>
 
-      {/* TIMETABLE CONTENT */}
+          {availableGroupings.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs shrink-0">
+              <span className="text-[11px] font-bold text-[var(--md-sys-color-outline)] shrink-0">
+                Group:
+              </span>
+              {availableGroupings.map((grp) => (
+                <button
+                  key={grp}
+                  type="button"
+                  onClick={() => {
+                    setSelectedGrouping(grp);
+                    localStorage.setItem('timetable_grouping', grp);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] ${
+                    selectedGrouping === grp
+                      ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-xs'
+                      : 'bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface-variant)] hover:text-[var(--md-sys-color-on-surface)]'
+                  }`}
+                >
+                  {grp}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* MAIN TIMETABLE CONTENT */}
       {!selectedIntake ? (
-        <div className="py-20 text-center space-y-4 rounded-3xl bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline-variant)]/20 p-6">
-          <div className="w-12 h-12 mx-auto rounded-full bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] flex items-center justify-center">
-            <Compass className="w-6 h-6" />
+        <section className="py-24 text-center space-y-4 rounded-3xl bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline-variant)]/20 p-8 max-w-xl mx-auto">
+          <div
+            className="w-14 h-14 mx-auto rounded-3xl bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] flex items-center justify-center shadow-xs"
+            aria-hidden="true"
+          >
+            <Compass className="w-7 h-7" />
           </div>
-          <div>
-            <h3 className="text-base font-bold text-[var(--md-sys-color-on-surface)]">
-              Select Your Intake Code
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-black text-[var(--md-sys-color-on-surface)]">
+              Select Your Course Intake
             </h3>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)] max-w-sm mx-auto mt-1">
-              Choose your course intake (e.g. APU2F2404CS) to view your schedule and nearest free classrooms.
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)] leading-relaxed">
+              Choose your APU intake code (e.g. UC3F2404CS) to load your weekly schedule, class times, and nearby free study rooms.
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowIntakeModal(true)}
-            className="px-5 py-2.5 rounded-full bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
+            className="px-6 py-3 rounded-2xl bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] text-xs font-black hover:opacity-95 transition cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] shadow-sm"
           >
             Choose Intake Code
           </button>
-        </div>
+        </section>
       ) : viewMode === 'daily' ? (
         /* DAILY VIEW */
-        <div className="space-y-3">
+        <section className="space-y-3.5" aria-label={`Timetable for ${selectedDay}`}>
           {dailyDisplayItems.length === 0 ? (
-            <div className="py-16 text-center space-y-2 rounded-3xl bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline-variant)]/20">
-              <p className="text-sm font-bold text-[var(--md-sys-color-on-surface)]">
+            <div className="py-20 text-center space-y-2 rounded-3xl bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline-variant)]/20 p-6">
+              <CalendarDays className="w-10 h-10 mx-auto text-[var(--md-sys-color-outline)]" aria-hidden="true" />
+              <h4 className="text-sm font-bold text-[var(--md-sys-color-on-surface)]">
                 No classes scheduled for {selectedDay}
-              </p>
+              </h4>
               <p className="text-xs text-[var(--md-sys-color-outline)]">
-                Enjoy your free time or check another day!
+                Enjoy your study break or check another weekday!
               </p>
             </div>
           ) : (
@@ -379,30 +431,45 @@ export default function TimetableTab({ allTimetables, loading }) {
               )
             )
           )}
-        </div>
+        </section>
       ) : (
-        /* WEEKLY VIEW (MON-FRI) */
-        <div className="space-y-6">
+        /* FULL RESPONSIVE 5-DAY SCHOOL WEEK VIEW */
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4" aria-label="Weekly Timetable Grid">
           {SCHOOL_DAYS.map((d) => {
             const dayClasses = classesByDay[d.key] || [];
+            const isToday = todayCode === d.key;
+
             return (
-              <div key={d.key} className="space-y-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase px-2.5 py-1 rounded-lg bg-[var(--md-sys-color-surface-container-highest)] text-[var(--md-sys-color-on-surface)]">
-                    {d.key}
+              <div
+                key={d.key}
+                className={`p-3.5 sm:p-4 rounded-3xl border transition-all flex flex-col space-y-3 ${
+                  isToday
+                    ? 'bg-[var(--md-sys-color-surface-container-high)] border-[var(--md-sys-color-primary)]/40 shadow-xs'
+                    : 'bg-[var(--md-sys-color-surface-container)] border-[var(--md-sys-color-outline-variant)]/20'
+                }`}
+              >
+                {/* Day Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-[var(--md-sys-color-outline-variant)]/20">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black uppercase tracking-wider text-[var(--md-sys-color-on-surface)]">
+                      {d.label}
+                    </span>
+                    {isToday && (
+                      <span className="w-2 h-2 rounded-full bg-[var(--md-sys-color-primary)]" aria-hidden="true" />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-[var(--md-sys-color-outline)]">
+                    {dayClasses.length}
                   </span>
-                  <span className="text-xs font-bold text-[var(--md-sys-color-outline)]">
-                    {dayClasses.length} {dayClasses.length === 1 ? 'class' : 'classes'}
-                  </span>
-                  <div className="flex-1 h-px bg-[var(--md-sys-color-outline-variant)]/20" />
                 </div>
 
+                {/* Day Classes */}
                 {dayClasses.length === 0 ? (
-                  <p className="text-xs text-[var(--md-sys-color-outline)] italic py-2 pl-2">
+                  <div className="py-12 text-center text-xs text-[var(--md-sys-color-outline)] italic">
                     No classes
-                  </p>
+                  </div>
                 ) : (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2.5 flex-1">
                     {dayClasses.map((cls, idx) => (
                       <ClassCard key={idx} cls={cls} />
                     ))}
@@ -411,53 +478,81 @@ export default function TimetableTab({ allTimetables, loading }) {
               </div>
             );
           })}
-        </div>
+        </section>
       )}
 
       {/* INTAKE SELECTOR MODAL */}
       {showIntakeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs transition-opacity"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="intake-dialog-title"
+          onClick={() => setShowIntakeModal(false)}
+        >
           <div
-            className="w-full max-w-md max-h-[80vh] flex flex-col rounded-3xl bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)] border border-[var(--md-sys-color-outline-variant)]/30 shadow-2xl overflow-hidden"
+            className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-3xl bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface)] border border-[var(--md-sys-color-outline-variant)]/40 shadow-2xl overflow-hidden focus:outline-none"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-[var(--md-sys-color-surface-container-high)] flex items-center justify-between">
-              <h3 className="text-sm font-black">Select Intake Code</h3>
+            <div className="px-6 py-5 border-b border-[var(--md-sys-color-surface-container-high)] flex items-center justify-between">
+              <div>
+                <h3 id="intake-dialog-title" className="text-base font-black text-[var(--md-sys-color-on-surface)]">
+                  Select Course Intake Code
+                </h3>
+                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)] mt-0.5">
+                  Browse {allIntakes.length} intakes available in the campus database
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowIntakeModal(false)}
-                className="p-1 rounded-full hover:bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-outline)]"
+                aria-label="Close dialog"
+                className="p-2 rounded-full hover:bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-outline)] hover:text-[var(--md-sys-color-on-surface)] transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-6 space-y-4">
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--md-sys-color-outline)]" />
+                <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-[var(--md-sys-color-outline)]" aria-hidden="true" />
                 <input
                   type="text"
                   value={intakeInput}
                   onChange={(e) => setIntakeInput(e.target.value)}
-                  placeholder="Search intake code (e.g. UC3F2404CS)..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-[var(--md-sys-color-surface-container-high)] border border-[var(--md-sys-color-outline-variant)]/30 focus:outline-hidden focus:border-[var(--md-sys-color-primary)]"
+                  placeholder="Type intake code (e.g. UC3F2404CS, APU2F)..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl text-xs bg-[var(--md-sys-color-surface-container-high)] border border-[var(--md-sys-color-outline-variant)]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-surface)]"
+                  autoFocus
                 />
               </div>
 
-              <div className="max-h-64 overflow-y-auto space-y-1">
-                {intakeSuggestions.map((intake) => (
-                  <button
-                    key={intake}
-                    type="button"
-                    onClick={() => handleSelectIntake(intake)}
-                    className="w-full p-2.5 rounded-xl text-left text-xs font-bold hover:bg-[var(--md-sys-color-surface-container-high)] transition flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{intake}</span>
-                    {selectedIntake === intake && (
-                      <Check className="w-3.5 h-3.5 text-[var(--md-sys-color-primary)]" />
-                    )}
-                  </button>
-                ))}
+              <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+                {intakeSuggestions.length === 0 ? (
+                  <p className="text-xs text-[var(--md-sys-color-outline)] text-center py-8">
+                    No intake found matching "{intakeInput}"
+                  </p>
+                ) : (
+                  intakeSuggestions.map((intake) => {
+                    const isSelected = selectedIntake === intake;
+                    return (
+                      <button
+                        key={intake}
+                        type="button"
+                        onClick={() => handleSelectIntake(intake)}
+                        className={`w-full px-4 py-3 rounded-2xl text-left text-xs font-bold transition flex items-center justify-between cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)] ${
+                          isSelected
+                            ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+                            : 'hover:bg-[var(--md-sys-color-surface-container-high)] text-[var(--md-sys-color-on-surface)]'
+                        }`}
+                      >
+                        <span>{intake}</span>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-[var(--md-sys-color-primary)] stroke-[3]" aria-hidden="true" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
