@@ -119,6 +119,7 @@ export function findAvailableClassrooms(
         category: getRoomCategory(room),
         nextClass: upcoming.length > 0 ? upcoming[0] : null,
         freeDurationMins,
+        freeDurationMinutes: freeDurationMins,
         totalClassesToday: classesToday.length,
         scheduleToday: classesToday.sort(
           (a, b) => parseTimeToMinutes(a.TIME_FROM) - parseTimeToMinutes(b.TIME_FROM)

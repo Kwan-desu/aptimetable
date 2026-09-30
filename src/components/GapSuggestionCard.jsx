@@ -64,7 +64,13 @@ export default function GapSuggestionCard({ gap }) {
           </div>
 
           <span className="text-[11px] font-medium text-[var(--md-sys-color-on-tertiary-container)]/75">
-            Free for {Math.floor(best.freeMinutes / 60)}h {best.freeMinutes % 60 > 0 ? `${best.freeMinutes % 60}m` : ''}
+            {(() => {
+              const m = Number(best.freeMinutes) || 0;
+              const h = Math.floor(m / 60);
+              const rest = m % 60;
+              if (h > 0) return `Free for ${h}h ${rest > 0 ? `${rest}m` : ''}`;
+              return `Free for ${rest}m`;
+            })()}
           </span>
         </div>
       )}
@@ -77,9 +83,10 @@ export default function GapSuggestionCard({ gap }) {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {gap.suggestions.slice(1).map((room, idx) => {
-              const fH = Math.floor(room.freeMinutes / 60);
-              const fM = room.freeMinutes % 60;
-              const freeText = fH > 0 ? `${fH}h ${fM > 0 ? `${fM}m` : ''} free` : `${fM}m free`;
+              const m = Number(room.freeMinutes) || 0;
+              const fH = Math.floor(m / 60);
+              const fM = m % 60;
+              const freeText = fH > 0 ? `${fH}h ${fM > 0 ? `${fM}m ` : ''}free` : `${fM}m free`;
 
               return (
                 <div

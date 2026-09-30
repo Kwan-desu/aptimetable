@@ -230,14 +230,17 @@ export default function ClassroomFinderTab({ allTimetables, loading }) {
       ) : (
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Available Classrooms">
           {availableRooms.map((room) => {
-            const freeHours = Math.floor(room.freeDurationMinutes / 60);
-            const freeMins = room.freeDurationMinutes % 60;
+            const durationMins = Number(room.freeDurationMinutes ?? room.freeDurationMins) || 0;
+            const freeHours = Math.floor(durationMins / 60);
+            const freeMins = durationMins % 60;
             const freeText =
-              room.freeDurationMinutes > 899
+              durationMins >= 720 || !room.nextClass
                 ? 'Free all day'
                 : freeHours > 0
-                ? `${freeHours}h ${freeMins > 0 ? `${freeMins}m` : ''} free`
-                : `${freeMins}m free`;
+                ? `${freeHours}h ${freeMins > 0 ? `${freeMins}m ` : ''}free`
+                : freeMins > 0
+                ? `${freeMins}m free`
+                : 'Free now';
 
             const catLabel =
               room.category === 'laboratory'
