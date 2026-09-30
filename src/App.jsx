@@ -140,8 +140,18 @@ export default function App() {
       />
 
       {/* Minimal Footer */}
-      <footer className="mt-8 py-4 border-t border-[var(--md-sys-color-surface-container-high)] text-center text-[11px] text-[var(--md-sys-color-outline)]">
+      <footer className="mt-8 py-5 border-t border-[var(--md-sys-color-surface-container-high)] text-center text-[11px] text-[var(--md-sys-color-outline)] space-y-1">
         <p>APTimetable • Material You • Campus Live Feed</p>
+        <p>
+          <a
+            href="https://github.com/Kwan-desu/aptimetable"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline font-semibold text-[var(--md-sys-color-primary)]"
+          >
+            GitHub Repository
+          </a>
+        </p>
       </footer>
     </div>
   );
