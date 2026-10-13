@@ -33,14 +33,20 @@ export function getRoomCategory(room) {
   return 'classroom';
 }
 
-// Find available classrooms with sorting
-export function findAvailableClassrooms(
+/**
+ * Find and evaluate ALL classrooms for a given time window:
+ * returns every classroom with status ('free' | 'occupied'),
+ * current active class (if occupied), next upcoming class,
+ * free duration, and full day schedule.
+ */
+export function findClassrooms(
   timetables,
   day,
   fromTime24,
   toTime24,
   category = 'all',
   searchQuery = '',
+  statusFilter = 'all', // 'all' | 'free' | 'occupied'
   sortBy = 'room_asc'
 ) {
   if (!timetables || !Array.isArray(timetables)) return [];
@@ -66,9 +72,10 @@ export function findAvailableClassrooms(
     }
   });
 
-  const availableRooms = [];
+  const evaluatedRooms = [];
 
   allRooms.forEach((room) => {
+    // 1. Filter by category
     if (category !== 'all') {
       const cat = ROOM_CATEGORIES.find((c) => c.key === category);
       if (cat && cat.prefixes) {
@@ -77,61 +84,120 @@ export function findAvailableClassrooms(
       }
     }
 
-    if (searchQuery && !room.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return;
-    }
-
     const classesToday = roomScheduleMap.get(room) || [];
-    let isOccupied = false;
+    const sortedClassesToday = [...classesToday].sort(
+      (a, b) => parseTimeToMinutes(a.TIME_FROM) - parseTimeToMinutes(b.TIME_FROM)
+    );
 
+    // 2. Check if occupied during [startMins, endMins]
+    let isOccupied = false;
+    let currentClass = null;
+
+    // Rule: Labs closed after 19:00 (7 PM)
     if (room.toUpperCase().includes('LAB') && (startMins >= 19 * 60 || endMins >= 19 * 60)) {
       isOccupied = true;
+      currentClass = {
+        MODULE_NAME: 'Lab Facility Closed (After 19:00)',
+        TIME_FROM: '19:00',
+        TIME_TO: '23:59',
+        NAME: 'Campus Security',
+        INTAKE: 'CLOSED'
+      };
     }
 
     if (!isOccupied) {
-      for (const cls of classesToday) {
+      for (const cls of sortedClassesToday) {
         const classStart = parseTimeToMinutes(cls.TIME_FROM);
         const classEnd = parseTimeToMinutes(cls.TIME_TO);
 
         if (startMins < classEnd && endMins > classStart) {
           isOccupied = true;
+          currentClass = cls;
           break;
         }
       }
     }
 
+    // 3. Find next upcoming class after current window (or after current class end)
+    const referenceEnd = isOccupied && currentClass && currentClass.TIME_TO
+      ? parseTimeToMinutes(currentClass.TIME_TO)
+      : endMins;
+
+    const upcoming = sortedClassesToday
+      .map((c) => ({
+        ...c,
+        startMins: parseTimeToMinutes(c.TIME_FROM),
+        endMins: parseTimeToMinutes(c.TIME_TO)
+      }))
+      .filter((c) => c.startMins >= referenceEnd)
+      .sort((a, b) => a.startMins - b.startMins);
+
+    const nextClass = upcoming.length > 0 ? upcoming[0] : null;
+
+    // 4. Calculate free duration
+    let freeDurationMins = 0;
     if (!isOccupied) {
-      const upcoming = classesToday
-        .map((c) => ({
-          ...c,
-          startMins: parseTimeToMinutes(c.TIME_FROM),
-          endMins: parseTimeToMinutes(c.TIME_TO)
-        }))
-        .filter((c) => c.startMins >= endMins)
-        .sort((a, b) => a.startMins - b.startMins);
-
-      // Free duration: minutes until next class starts, or 9999 if free all day
-      const freeUntilMins = upcoming.length > 0 ? upcoming[0].startMins : 24 * 60;
-      const freeDurationMins = Math.max(0, freeUntilMins - endMins);
-
-      availableRooms.push({
-        room,
-        category: getRoomCategory(room),
-        nextClass: upcoming.length > 0 ? upcoming[0] : null,
-        freeDurationMins,
-        freeDurationMinutes: freeDurationMins,
-        totalClassesToday: classesToday.length,
-        scheduleToday: classesToday.sort(
-          (a, b) => parseTimeToMinutes(a.TIME_FROM) - parseTimeToMinutes(b.TIME_FROM)
-        )
-      });
+      const freeUntilMins = nextClass ? nextClass.startMins : 24 * 60;
+      freeDurationMins = Math.max(0, freeUntilMins - endMins);
     }
+
+    const roomStatus = isOccupied ? 'occupied' : 'free';
+
+    // 5. Filter by status (all | free | occupied)
+    if (statusFilter !== 'all' && roomStatus !== statusFilter) {
+      return;
+    }
+
+    // 6. Search query matching room name, module, lecturer, or intake
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchRoom = room.toLowerCase().includes(q);
+      const matchCurrentClass = currentClass && (
+        (currentClass.MODULE_NAME || '').toLowerCase().includes(q) ||
+        (currentClass.NAME || '').toLowerCase().includes(q) ||
+        (currentClass.INTAKE || '').toLowerCase().includes(q) ||
+        (currentClass.MODID || '').toLowerCase().includes(q)
+      );
+      const matchAnyClassToday = sortedClassesToday.some((c) =>
+        (c.MODULE_NAME || '').toLowerCase().includes(q) ||
+        (c.NAME || '').toLowerCase().includes(q) ||
+        (c.INTAKE || '').toLowerCase().includes(q) ||
+        (c.MODID || '').toLowerCase().includes(q)
+      );
+
+      if (!matchRoom && !matchCurrentClass && !matchAnyClassToday) {
+        return;
+      }
+    }
+
+    evaluatedRooms.push({
+      room,
+      category: getRoomCategory(room),
+      status: roomStatus,
+      isOccupied,
+      currentClass,
+      nextClass,
+      freeDurationMins,
+      freeDurationMinutes: freeDurationMins,
+      totalClassesToday: sortedClassesToday.length,
+      scheduleToday: sortedClassesToday
+    });
   });
 
-  // Apply Sorting
-  return availableRooms.sort((a, b) => {
+  // 7. Apply Sorting
+  return evaluatedRooms.sort((a, b) => {
     if (sortBy === 'longest_free') {
+      // Free rooms first by longest duration, then occupied rooms
+      if (a.status !== b.status) {
+        return a.status === 'free' ? -1 : 1;
+      }
       return b.freeDurationMins - a.freeDurationMins;
+    }
+    if (sortBy === 'occupied_first') {
+      if (a.status !== b.status) {
+        return a.status === 'occupied' ? -1 : 1;
+      }
+      return a.room.localeCompare(b.room, undefined, { numeric: true });
     }
     if (sortBy === 'room_desc') {
       return b.room.localeCompare(a.room, undefined, { numeric: true });
@@ -145,4 +211,26 @@ export function findAvailableClassrooms(
     // Default room_asc
     return a.room.localeCompare(b.room, undefined, { numeric: true });
   });
+}
+
+// Backward-compatible alias
+export function findAvailableClassrooms(
+  timetables,
+  day,
+  fromTime24,
+  toTime24,
+  category = 'all',
+  searchQuery = '',
+  sortBy = 'room_asc'
+) {
+  return findClassrooms(
+    timetables,
+    day,
+    fromTime24,
+    toTime24,
+    category,
+    searchQuery,
+    'free',
+    sortBy
+  );
 }

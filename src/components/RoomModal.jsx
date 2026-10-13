@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, Clock, User, CheckCircle2, DoorOpen, Users } from 'lucide-react';
 
-export default function RoomModal({ room, onClose }) {
+export default function RoomModal({ room, day, onClose }) {
   useEffect(() => {
     if (!room) return;
     const handleKeyDown = (e) => {
@@ -44,7 +44,7 @@ export default function RoomModal({ room, onClose }) {
                 </span>
               </div>
               <p className="text-xs text-[var(--md-sys-color-on-surface-variant)] mt-0.5">
-                Full Day Schedule & Sessions
+                {day ? `${day} Schedule (${room.scheduleToday?.length || 0} sessions)` : 'Full Day Schedule & Sessions'}
               </p>
             </div>
           </div>
